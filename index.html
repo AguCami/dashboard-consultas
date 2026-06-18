@@ -386,15 +386,14 @@ function renderPieChart(data) {
   if (resto > 0) { labels.push('Otros'); vals.push(resto); }
   const total = vals.reduce((s, v) => s + v, 0);
 
-  // Medir altura del gráfico de barras para igualar
+  const container = document.getElementById('pieContainer');
   const temasCard = document.getElementById('temasChart').closest('.chart-card');
-  const targetH = temasCard ? temasCard.offsetHeight : 320;
+  const cardH = temasCard ? temasCard.offsetHeight : 340;
   const legendRows = Math.ceil(vals.length / 2);
-  const legendH = legendRows * 24 + 16;
-  const svgH = Math.max(140, targetH - legendH - 40);
-  const svgW = svgH;
-  const cx = svgW / 2, cy = svgH / 2;
-  const R = svgH * 0.42, ri = R * 0.45;
+  const legendH = legendRows * 26 + 20;
+  const svgSize = cardH - legendH - 48; // 48 = padding card + titulo
+  const cx = svgSize / 2, cy = svgSize / 2;
+  const R = svgSize * 0.44, ri = R * 0.42;
 
   let startAngle = -Math.PI / 2;
   let svgPaths = '', legendItems = '';
@@ -410,20 +409,25 @@ function renderPieChart(data) {
     const d = `M${x1o},${y1o} A${R},${R} 0 ${large},1 ${x2o},${y2o} L${x1i},${y1i} A${ri},${ri} 0 ${large},0 ${x2i},${y2i} Z`;
     const pct = Math.round(v / total * 100);
     svgPaths += `<path d="${d}" fill="${COLORS[i]}" stroke="#fff" stroke-width="1.5"><title>${labels[i]}: ${v} (${pct}%)</title></path>`;
-    legendItems += `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#6b6b66;">
+    legendItems += `<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#6b6b66;overflow:hidden;">
       <span style="width:10px;height:10px;border-radius:2px;background:${COLORS[i]};flex-shrink:0;"></span>
-      <span><strong style="color:#1a1a18;">${v}</strong> ${labels[i]} <span style="color:#9b9b96;">${pct}%</span></span>
+      <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><strong style="color:#1a1a18;">${v}</strong> ${labels[i]} <span style="color:#9b9b96;">${pct}%</span></span>
     </div>`;
     startAngle = endAngle;
   });
 
-  document.getElementById('pieContainer').innerHTML = `
-    <div style="display:flex;justify-content:center;">
-      <svg viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}" style="display:block;">
+  container.style.height = (cardH - 48) + 'px';
+  container.style.display = 'flex';
+  container.style.flexDirection = 'column';
+  container.style.justifyContent = 'space-between';
+
+  container.innerHTML = `
+    <div style="display:flex;justify-content:center;align-items:center;flex:1;">
+      <svg viewBox="0 0 ${svgSize} ${svgSize}" width="${svgSize}" height="${svgSize}" style="display:block;">
         ${svgPaths}
       </svg>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;padding:10px 0 4px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;padding:10px 0 0;">
       ${legendItems}
     </div>`;
 }
@@ -512,37 +516,62 @@ async function doExport() {
   const { w, h } = sizes[exportFormat];
 
   const source = document.getElementById('dashboard');
+
+  // Expandir temporalmente para capturar todo sin scroll
+  const prevWidth = source.style.width;
+  const prevOverflow = document.body.style.overflow;
+  source.style.width = (exportFormat === 'celu' ? '480px' : '960px');
+  document.body.style.overflow = 'visible';
+
+  await new Promise(r => setTimeout(r, 120)); // esperar repintado
+
+  const captureW = exportFormat === 'celu' ? 480 : 960;
+  const scale = exportFormat === 'celu' ? 4 : 5;
+
   const canvas = await html2canvas(source, {
-    scale: exportFormat === 'celu' ? 3 : 4,
+    scale,
     useCORS: true,
     backgroundColor: '#f5f5f3',
-    logging: false
+    logging: false,
+    width: captureW,
+    windowWidth: captureW,
+    scrollX: 0,
+    scrollY: 0
   });
 
+  // Restaurar
+  source.style.width = prevWidth;
+  document.body.style.overflow = prevOverflow;
+
+  // Canvas final
   const final = document.createElement('canvas');
   final.width = w;
   final.height = h;
   const ctx = final.getContext('2d');
+
+  // Fondo
   ctx.fillStyle = '#f5f5f3';
   ctx.fillRect(0, 0, w, h);
 
-  const scale = Math.min(w / canvas.width, h / canvas.height);
-  const dx = (w - canvas.width * scale) / 2;
-  const dy = exportFormat === 'celu' ? 80 : 120;
-  ctx.drawImage(canvas, dx, dy, canvas.width * scale, canvas.height * scale);
-
-  // Header del reporte
+  // Header verde
+  const headerH = exportFormat === 'celu' ? 90 : 130;
   ctx.fillStyle = '#1D9E75';
-  ctx.fillRect(0, 0, w, exportFormat === 'celu' ? 70 : 100);
+  ctx.fillRect(0, 0, w, headerH);
   ctx.fillStyle = '#ffffff';
-  ctx.font = `bold ${exportFormat === 'celu' ? 28 : 42}px sans-serif`;
+  ctx.font = `bold ${exportFormat === 'celu' ? 38 : 56}px -apple-system, sans-serif`;
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
-  ctx.fillText('Consultas', exportFormat === 'celu' ? 32 : 48, exportFormat === 'celu' ? 35 : 50);
-  const periodTxt = document.getElementById('nav-label').textContent || document.getElementById('nav-label').textContent;
-  ctx.font = `${exportFormat === 'celu' ? 18 : 28}px sans-serif`;
+  ctx.fillText('Consultas', exportFormat === 'celu' ? 48 : 72, headerH / 2);
+  const periodTxt = document.getElementById('nav-label').textContent;
+  ctx.font = `${exportFormat === 'celu' ? 24 : 36}px -apple-system, sans-serif`;
   ctx.textAlign = 'right';
-  ctx.fillText(periodTxt, w - (exportFormat === 'celu' ? 32 : 48), exportFormat === 'celu' ? 35 : 50);
+  ctx.fillText(periodTxt, w - (exportFormat === 'celu' ? 48 : 72), headerH / 2);
+
+  // Contenido: escalar para que ocupe el ancho completo
+  const contentScale = w / canvas.width;
+  const contentH = canvas.height * contentScale;
+  const dy = headerH + (exportFormat === 'celu' ? 24 : 40);
+  ctx.drawImage(canvas, 0, dy, w, contentH);
 
   const link = document.createElement('a');
   link.download = `consultas-${exportFormat}-${new Date().toISOString().slice(0,10)}.png`;
