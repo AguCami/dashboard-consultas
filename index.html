@@ -6,6 +6,7 @@
 <title>Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -215,7 +216,11 @@
       </div>
       <div class="export-opt" id="opt-a4" onclick="selectFormat('a4')">
         <div class="export-opt-icon">📄</div>
-        <div><div class="export-opt-text">Hoja A4</div><div class="export-opt-sub">2480 × 3508 px</div></div>
+        <div><div class="export-opt-text">Hoja A4</div><div class="export-opt-sub">2480 × 3508 px (PNG)</div></div>
+      </div>
+      <div class="export-opt" id="opt-pdf" onclick="selectFormat('pdf')">
+        <div class="export-opt-icon">📋</div>
+        <div><div class="export-opt-text">PDF A4</div><div class="export-opt-sub">Completo, sin recortes</div></div>
       </div>
     </div>
     <div class="export-actions">
@@ -503,40 +508,97 @@ function selectFormat(f){
 async function doExport(){
   const btn=document.getElementById('btn-do-export');
   btn.disabled=true; btn.textContent='Generando…';
-  const sizes={celu:{w:1080,h:1920},a4:{w:2480,h:3508}};
-  const {w,h}=sizes[exportFormat];
   const source=document.getElementById(`${currentSection}-dashboard`);
-  const captureW=exportFormat==='celu'?480:960;
-  const scale=exportFormat==='celu'?4:5;
-  const prevWidth=source.style.width;
-  source.style.width=captureW+'px';
-  document.body.style.overflow='visible';
-  await new Promise(r=>setTimeout(r,150));
-  const canvas=await html2canvas(source,{scale,useCORS:true,backgroundColor:'#f5f5f3',logging:false,width:captureW,windowWidth:captureW,scrollX:0,scrollY:0});
-  source.style.width=prevWidth;
-  document.body.style.overflow='';
-  const final=document.createElement('canvas');
-  final.width=w; final.height=h;
-  const ctx=final.getContext('2d');
-  ctx.fillStyle='#f5f5f3'; ctx.fillRect(0,0,w,h);
-  const headerH=exportFormat==='celu'?90:130;
   const accentColor=currentSection==='mesa'?'#1D9E75':'#7F77DD';
-  ctx.fillStyle=accentColor; ctx.fillRect(0,0,w,headerH);
-  ctx.fillStyle='#fff';
-  ctx.font=`bold ${exportFormat==='celu'?38:56}px sans-serif`;
-  ctx.textBaseline='middle'; ctx.textAlign='left';
   const sectionName=currentSection==='mesa'?'Mesa de informes':'Atención telefónica';
-  ctx.fillText(sectionName,exportFormat==='celu'?48:72,headerH/2);
   const periodTxt=document.getElementById(`${currentSection}-nav-label`).textContent;
-  ctx.font=`${exportFormat==='celu'?24:36}px sans-serif`;
-  ctx.textAlign='right';
-  ctx.fillText(periodTxt,w-(exportFormat==='celu'?48:72),headerH/2);
-  const contentScale=w/canvas.width;
-  ctx.drawImage(canvas,0,headerH+(exportFormat==='celu'?24:40),w,canvas.height*contentScale);
-  const link=document.createElement('a');
-  link.download=`${currentSection}-${exportFormat}-${new Date().toISOString().slice(0,10)}.png`;
-  link.href=final.toDataURL('image/png'); link.click();
-  btn.disabled=false; btn.textContent='Generar PNG';
+  const fecha=new Date().toISOString().slice(0,10);
+
+  if(exportFormat==='pdf'){
+    // PDF: captura todo el contenido a ancho fijo y pagina automáticamente
+    const captureW=900;
+    const prevWidth=source.style.width;
+    source.style.width=captureW+'px';
+    document.body.style.overflow='visible';
+    await new Promise(r=>setTimeout(r,150));
+    const canvas=await html2canvas(source,{scale:2,useCORS:true,backgroundColor:'#f5f5f3',logging:false,width:captureW,windowWidth:captureW,scrollX:0,scrollY:0});
+    source.style.width=prevWidth;
+    document.body.style.overflow='';
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const pW=pdf.internal.pageSize.getWidth();
+    const pH=pdf.internal.pageSize.getHeight();
+    const margin=12;
+    const headerH=18;
+    // Header
+    pdf.setFillColor(accentColor);
+    pdf.rect(0,0,pW,headerH,'F');
+    pdf.setTextColor(255,255,255);
+    pdf.setFontSize(13); pdf.setFont('helvetica','bold');
+    pdf.text(sectionName,margin,12);
+    pdf.setFontSize(9); pdf.setFont('helvetica','normal');
+    pdf.text(periodTxt,pW-margin,12,{align:'right'});
+    pdf.text(fecha,pW-margin,pH-6,{align:'right'});
+    // Contenido: dividir en páginas si es necesario
+    const imgW=pW-margin*2;
+    const imgH=(canvas.height/canvas.width)*imgW;
+    const contentY=headerH+6;
+    const availH=pH-contentY-10;
+    const pageH=(canvas.height/canvas.width)*imgW;
+    if(pageH<=availH){
+      pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',margin,contentY,imgW,pageH);
+    } else {
+      // múltiples páginas
+      const srcW=canvas.width;
+      const srcH=canvas.height;
+      const rowsPerPage=Math.floor(availH/(imgW/srcW*srcH/srcH)*srcH);
+      let srcY=0, firstPage=true;
+      while(srcY<srcH){
+        if(!firstPage){ pdf.addPage(); pdf.setFillColor(accentColor); pdf.rect(0,0,pW,8,'F'); }
+        const rowH=Math.min(rowsPerPage,srcH-srcY);
+        const tmpCanvas=document.createElement('canvas');
+        tmpCanvas.width=srcW; tmpCanvas.height=rowH;
+        tmpCanvas.getContext('2d').drawImage(canvas,0,srcY,srcW,rowH,0,0,srcW,rowH);
+        const sliceH=(rowH/srcW)*imgW;
+        const yPos=firstPage?contentY:10;
+        pdf.addImage(tmpCanvas.toDataURL('image/jpeg',0.92),'JPEG',margin,yPos,imgW,sliceH);
+        srcY+=rowH; firstPage=false;
+      }
+    }
+    pdf.save(`${currentSection}-${fecha}.pdf`);
+  } else {
+    // PNG (celular o A4)
+    const sizes={celu:{w:1080,h:1920},a4:{w:2480,h:3508}};
+    const {w,h}=sizes[exportFormat];
+    const captureW=exportFormat==='celu'?480:960;
+    const scale=exportFormat==='celu'?4:5;
+    const prevWidth=source.style.width;
+    source.style.width=captureW+'px';
+    document.body.style.overflow='visible';
+    await new Promise(r=>setTimeout(r,150));
+    const canvas=await html2canvas(source,{scale,useCORS:true,backgroundColor:'#f5f5f3',logging:false,width:captureW,windowWidth:captureW,scrollX:0,scrollY:0});
+    source.style.width=prevWidth;
+    document.body.style.overflow='';
+    const final=document.createElement('canvas');
+    final.width=w; final.height=h;
+    const ctx=final.getContext('2d');
+    ctx.fillStyle='#f5f5f3'; ctx.fillRect(0,0,w,h);
+    const headerH=exportFormat==='celu'?90:130;
+    ctx.fillStyle=accentColor; ctx.fillRect(0,0,w,headerH);
+    ctx.fillStyle='#fff';
+    ctx.font=`bold ${exportFormat==='celu'?38:56}px sans-serif`;
+    ctx.textBaseline='middle'; ctx.textAlign='left';
+    ctx.fillText(sectionName,exportFormat==='celu'?48:72,headerH/2);
+    ctx.font=`${exportFormat==='celu'?24:36}px sans-serif`;
+    ctx.textAlign='right';
+    ctx.fillText(periodTxt,w-(exportFormat==='celu'?48:72),headerH/2);
+    const contentScale=w/canvas.width;
+    ctx.drawImage(canvas,0,headerH+(exportFormat==='celu'?24:40),w,canvas.height*contentScale);
+    const link=document.createElement('a');
+    link.download=`${currentSection}-${exportFormat}-${fecha}.png`;
+    link.href=final.toDataURL('image/png'); link.click();
+  }
+  btn.disabled=false; btn.textContent='Generar';
   closeExport();
 }
 
