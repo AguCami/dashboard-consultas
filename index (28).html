@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Consultas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f5f3; --surface: #ffffff; --surface2: #f0efed;
+    --text: #1a1a18; --text-muted: #6b6b66; --text-hint: #9b9b96;
+    --border: rgba(0,0,0,0.1); --accent: #1D9E75;
+    --radius: 12px; --radius-sm: 8px;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 60px; position: sticky; top: 0; z-index: 10; gap: 12px; flex-wrap: wrap; }
+  .logo { font-size: 15px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
+  .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 2px; background: var(--surface2); border-radius: var(--radius-sm); padding: 3px; }
+  .tab { padding: 5px 14px; font-size: 13px; font-weight: 500; border-radius: 6px; cursor: pointer; color: var(--text-muted); border: none; background: transparent; transition: all 0.15s; }
+  .tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 13px; font-weight: 500; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; transition: all 0.15s; }
+  .btn:hover { background: var(--surface2); color: var(--text); }
+  main { padding: 2rem; max-width: 1100px; margin: 0 auto; }
+
+  .period-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 10px; }
+  .nav-arrows { display: flex; align-items: center; gap: 6px; }
+  .nav-btn { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; font-size: 15px; transition: all 0.15s; }
+  .nav-btn:hover { background: var(--surface2); color: var(--text); }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+  .nav-label { font-size: 14px; font-weight: 500; color: var(--text); min-width: 180px; text-align: center; }
+  .last-update { font-size: 12px; color: var(--text-hint); }
+
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
+  .metric { background: var(--surface); border-radius: var(--radius); padding: 1.1rem 1.25rem; border: 1px solid var(--border); }
+  .metric-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-hint); margin-bottom: 8px; }
+  .metric-value { font-size: 28px; font-weight: 600; color: var(--text); line-height: 1; }
+  .metric-value.small { font-size: 15px; padding-top: 4px; line-height: 1.3; }
+  .metric-sub { font-size: 11px; color: var(--text-hint); margin-top: 4px; }
+
+  .chart-card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 1.25rem 1.5rem; margin-bottom: 1rem; }
+  .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .chart-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 500; background: #e8f7f2; color: #0f6e56; }
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1rem; }
+
+  .status-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; gap: 12px; color: var(--text-muted); font-size: 14px; }
+  .spinner { width: 28px; height: 28px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-msg { color: #c0392b; text-align: center; max-width: 300px; }
+
+  .export-modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:100; align-items:center; justify-content:center; }
+  .export-modal-bg.open { display:flex; }
+  .export-modal { background:var(--surface); border-radius:var(--radius); padding:1.5rem; width:280px; box-shadow:0 8px 32px rgba(0,0,0,0.18); }
+  .export-modal h3 { font-size:15px; font-weight:600; margin-bottom:1rem; color:var(--text); }
+  .export-options { display:flex; flex-direction:column; gap:8px; margin-bottom:1.25rem; }
+  .export-opt { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:var(--radius-sm); border:1px solid var(--border); cursor:pointer; transition:all 0.15s; background:var(--surface); }
+  .export-opt:hover { background:var(--surface2); }
+  .export-opt.selected { border-color:#1D9E75; background:#f0faf6; }
+  .export-opt-icon { font-size:22px; }
+  .export-opt-text { font-size:13px; font-weight:500; color:var(--text); }
+  .export-opt-sub { font-size:11px; color:var(--text-hint); }
+  .export-actions { display:flex; gap:8px; }
+  .btn-cancel { flex:1; padding:8px; border-radius:var(--radius-sm); border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; font-size:13px; font-weight:500; }
+  .btn-export { flex:2; padding:8px; border-radius:var(--radius-sm); border:none; background:#1D9E75; color:#fff; cursor:pointer; font-size:13px; font-weight:600; }
+  .btn-export:disabled { opacity:0.5; cursor:default; }
+  @media (max-width: 600px) {
+    header { padding: 10px 1rem; height: auto; }
+    main { padding: 1rem; }
+    .charts-grid { grid-template-columns: 1fr; }
+    .metric-value { font-size: 22px; }
+    .nav-label { min-width: 130px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-dot"></div>Consultas</div>
+  <div class="header-right">
+    <div class="tabs">
+      <button class="tab active" onclick="setView('semanal')">Semanal</button>
+      <button class="tab" onclick="setView('mensual')">Mensual</button>
+      <button class="tab" onclick="setView('historico')">Histórico</button>
+    </div>
+    <button class="btn" onclick="loadData()">↻ Actualizar</button>
+    <button class="btn" onclick="openExport()" style="background:#1D9E75;color:#fff;border-color:#1D9E75;">↓ Exportar PNG</button>
+  </div>
+</header>
+
+<main>
+  <div id="status-screen" class="status-screen">
+    <div class="spinner"></div>
+    <span>Cargando datos desde la planilla…</span>
+  </div>
+
+  <div id="dashboard" style="display:none;">
+    <div class="period-nav">
+      <div class="nav-arrows" id="nav-arrows">
+        <button class="nav-btn" id="btn-prev" onclick="navPeriod(-1)" title="Período anterior">&#8592;</button>
+        <span class="nav-label" id="nav-label"></span>
+        <button class="nav-btn" id="btn-next" onclick="navPeriod(1)" title="Período siguiente">&#8594;</button>
+      </div>
+      <span class="last-update" id="last-update"></span>
+    </div>
+
+    <div class="metrics" id="metrics"></div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title" id="vol-title">Volumen de consultas</span>
+        <span class="badge" id="vol-badge"></span>
+      </div>
+      <div style="position:relative; width:100%; height:200px;">
+        <canvas id="volChart" role="img" aria-label="Gráfico de volumen de consultas por período"></canvas>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-header"><span class="chart-title">Temas frecuentes</span></div>
+        <div style="position:relative; width:100%; height:260px;">
+          <canvas id="temasChart" role="img" aria-label="Temas más frecuentes"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header"><span class="chart-title">Distribución</span></div>
+        <div id="pieContainer" style="width:100%;"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="export-modal-bg" id="export-modal-bg">
+  <div class="export-modal">
+    <h3>Exportar como PNG</h3>
+    <div class="export-options">
+      <div class="export-opt selected" id="opt-celu" onclick="selectFormat('celu')">
+        <div class="export-opt-icon">📱</div>
+        <div><div class="export-opt-text">Celular</div><div class="export-opt-sub">1080 × 1920 px</div></div>
+      </div>
+      <div class="export-opt" id="opt-a4" onclick="selectFormat('a4')">
+        <div class="export-opt-icon">📄</div>
+        <div><div class="export-opt-text">Hoja A4</div><div class="export-opt-sub">2480 × 3508 px</div></div>
+      </div>
+    </div>
+    <div class="export-actions">
+      <button class="btn-cancel" onclick="closeExport()">Cancelar</button>
+      <button class="btn-export" id="btn-do-export" onclick="doExport()">Generar PNG</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR-vGYiK_8OhplLEXgetUneXjapip9jMQ-Epovf_BjlsE8MKZXHrIZ7TSVRBIKnSmoMK8KvW83diT6z/pub?output=csv";
+const COLORS = ['#1D9E75','#7F77DD','#D85A30','#378ADD','#BA7517','#D4537E','#639922','#888780','#E24B4A','#5DCAA5'];
+
+let allData = [];
+let currentView = 'semanal';
+let periodOffset = 0; // 0 = actual, -1 = anterior, etc.
+let charts = {};
+
+function setView(v) {
+  currentView = v;
+  periodOffset = 0;
+  document.querySelectorAll('.tab').forEach(t => {
+    const map = { semanal: 'Semanal', mensual: 'Mensual', historico: 'Histórico' };
+    t.classList.toggle('active', t.textContent === map[v]);
+  });
+  const navEl = document.getElementById('nav-arrows');
+  navEl.style.display = v === 'historico' ? 'none' : 'flex';
+  if (allData.length) renderDashboard();
+}
+
+function navPeriod(dir) {
+  periodOffset += dir;
+  renderDashboard();
+}
+
+function getWeekBounds(offset) {
+  const now = new Date();
+  const day = now.getDay() || 7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - day + 1 + offset * 7);
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return { start: monday, end: sunday };
+}
+
+function getMonthBounds(offset) {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0, 23, 59, 59, 999);
+  return { start, end };
+}
+
+function filterByView(data) {
+  if (currentView === 'semanal') {
+    const { start, end } = getWeekBounds(periodOffset);
+    return data.filter(r => r._date >= start && r._date <= end);
+  }
+  if (currentView === 'mensual') {
+    const { start, end } = getMonthBounds(periodOffset);
+    return data.filter(r => r._date >= start && r._date <= end);
+  }
+  return data;
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  return lines.slice(1).map(line => {
+    const cols = [];
+    let cur = '', inQ = false;
+    for (let ch of line) {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
+    }
+    cols.push(cur.trim());
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = (cols[i] || '').replace(/^"|"$/g, ''); });
+    return obj;
+  }).filter(r => r['Marca temporal'] && r['Marca temporal'].trim());
+}
+
+function parseDate(str) {
+  if (!str) return null;
+  const m = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
+  const d = new Date(str);
+  return isNaN(d) ? null : d;
+}
+
+function topN(data, n = 8) {
+  const counts = {};
+  data.forEach(r => { const k = r['Asunto'] || 'Sin asunto'; counts[k] = (counts[k] || 0) + 1; });
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, n);
+}
+
+function destroyChart(key) {
+  if (charts[key]) { try { charts[key].destroy(); } catch (e) {} delete charts[key]; }
+}
+
+function renderMetrics(data) {
+  const total = data.length;
+  const top = topN(data, 1)[0];
+  const days = new Set(data.map(r => r._date?.toDateString())).size;
+  const avg = days ? Math.round(total / days) : 0;
+  document.getElementById('metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Consultas</div><div class="metric-value">${total}</div></div>
+    <div class="metric"><div class="metric-label">Días activos</div><div class="metric-value">${days}</div></div>
+    <div class="metric"><div class="metric-label">Promedio / día</div><div class="metric-value">${avg}</div></div>
+    <div class="metric"><div class="metric-label">Tema principal</div><div class="metric-value small">${top ? top[0] : '—'}</div>${top ? `<div class="metric-sub">${top[1]} consultas</div>` : ''}</div>
+  `;
+}
+
+function renderVolChart(data) {
+  destroyChart('vol');
+  const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const grouped = {};
+
+  if (currentView === 'semanal') {
+    data.forEach(r => {
+      if (!r._date) return;
+      const k = `${DIAS[r._date.getDay()]} ${r._date.getDate()}/${r._date.getMonth() + 1}`;
+      grouped[k] = (grouped[k] || 0) + 1;
+    });
+    document.getElementById('vol-title').textContent = 'Consultas por día';
+    document.getElementById('vol-badge').textContent = periodOffset === 0 ? 'Semana actual' : `Hace ${Math.abs(periodOffset)} sem.`;
+  } else if (currentView === 'mensual') {
+    const { start: mStart, end: mEnd } = getMonthBounds(periodOffset);
+    const DIAS2 = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    data.forEach(r => {
+      if (!r._date) return;
+      const k = `${DIAS2[r._date.getDay()]} ${r._date.getDate()}/${r._date.getMonth() + 1}`;
+      grouped[k] = (grouped[k] || 0) + 1;
+    });
+    document.getElementById('vol-title').textContent = 'Consultas por día';
+    document.getElementById('vol-badge').textContent = periodOffset === 0 ? 'Mes actual' : `Hace ${Math.abs(periodOffset)} mes${Math.abs(periodOffset) > 1 ? 'es' : ''}`;
+  } else {
+    data.forEach(r => {
+      if (!r._date) return;
+      const k = r._date.toLocaleDateString('es-AR', { month: 'short', year: 'numeric' });
+      grouped[k] = (grouped[k] || 0) + 1;
+    });
+    document.getElementById('vol-title').textContent = 'Consultas por mes';
+    document.getElementById('vol-badge').textContent = 'Histórico';
+  }
+
+  const volLabels = Object.keys(grouped);
+  const volVals = Object.values(grouped);
+  const barCount = volLabels.length;
+  const maxBarThickness = barCount <= 5 ? 60 : barCount <= 10 ? 50 : 30;
+  charts.vol = new Chart(document.getElementById('volChart'), {
+    type: 'bar',
+    data: { labels: volLabels, datasets: [{ data: volVals, backgroundColor: '#1D9E75', borderRadius: 4, label: 'Consultas', maxBarThickness }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      layout: { padding: { left: barCount <= 5 ? 40 : 0, right: barCount <= 5 ? 40 : 0 } },
+      scales: {
+        x: { ticks: { autoSkip: currentView === "mensual", maxRotation: 45, font: { size: 10 } }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,0.05)' } }
+      }
+    },
+    plugins: [{
+      id: 'volLabels',
+      afterDatasetDraw(chart) {
+        const { ctx } = chart;
+        chart.getDatasetMeta(0).data.forEach((bar, i) => {
+          const val = volVals[i];
+          if (!val) return;
+          ctx.save();
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          ctx.fillText(val, bar.x, bar.y + 6);
+          ctx.restore();
+        });
+      }
+    }]
+  });
+}
+
+function renderTemasChart(data) {
+  destroyChart('temas');
+  const top = topN(data, 7);
+  const temasH = Math.max(180, top.length * 38 + 40);
+  document.getElementById('temasChart').parentElement.style.height = temasH + 'px';
+  charts.temas = new Chart(document.getElementById('temasChart'), {
+    type: 'bar',
+    data: { labels: top.map(t => t[0]), datasets: [{ data: top.map(t => t[1]), backgroundColor: COLORS.slice(0, top.length), borderRadius: 4, maxBarThickness: 28 }] },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        datalabels: { display: false }
+      },
+      scales: {
+        x: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,0.05)' } },
+        y: { ticks: { font: { size: 11 } }, grid: { display: false } }
+      }
+    },
+    plugins: [{
+      id: 'barLabels',
+      afterDatasetDraw(chart) {
+        const { ctx } = chart;
+        const xAxis = chart.scales.x;
+        const threshold = 40;
+        chart.getDatasetMeta(0).data.forEach((bar, i) => {
+          const val = chart.data.datasets[0].data[i];
+          const barWidth = bar.x - xAxis.left;
+          const inside = barWidth > threshold;
+          ctx.save();
+          ctx.font = 'bold 11px sans-serif';
+          ctx.textBaseline = 'middle';
+          if (inside) {
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'right';
+            ctx.fillText(val, bar.x - 8, bar.y);
+          } else {
+            ctx.fillStyle = '#6b6b66';
+            ctx.textAlign = 'left';
+            ctx.fillText(val, bar.x + 6, bar.y);
+          }
+          ctx.restore();
+        });
+      }
+    }]
+  });
+}
+
+function renderPieChart(data) {
+  destroyChart('pie');
+  const top = topN(data, 6);
+  const resto = data.length - top.reduce((s, t) => s + t[1], 0);
+  const labels = top.map(t => t[0]);
+  const vals = top.map(t => t[1]);
+  if (resto > 0) { labels.push('Otros'); vals.push(resto); }
+  const total = vals.reduce((s, v) => s + v, 0);
+
+  const W = 180, H = 180, cx = 90, cy = 90, R = 76, ri = 38;
+  let startAngle = -Math.PI / 2;
+  let svgPaths = '', legendItems = '';
+
+  vals.forEach((v, i) => {
+    const angle = (v / total) * 2 * Math.PI;
+    const endAngle = startAngle + angle;
+    const large = angle > Math.PI ? 1 : 0;
+    const x1o = cx + R  * Math.cos(startAngle), y1o = cy + R  * Math.sin(startAngle);
+    const x2o = cx + R  * Math.cos(endAngle),   y2o = cy + R  * Math.sin(endAngle);
+    const x1i = cx + ri * Math.cos(endAngle),   y1i = cy + ri * Math.sin(endAngle);
+    const x2i = cx + ri * Math.cos(startAngle), y2i = cy + ri * Math.sin(startAngle);
+    const d = `M${x1o},${y1o} A${R},${R} 0 ${large},1 ${x2o},${y2o} L${x1i},${y1i} A${ri},${ri} 0 ${large},0 ${x2i},${y2i} Z`;
+    const pct = Math.round(v / total * 100);
+    svgPaths += `<path d="${d}" fill="${COLORS[i]}" stroke="#fff" stroke-width="1.5"><title>${labels[i]}: ${v} (${pct}%)</title></path>`;
+    legendItems += `
+      <div style="display:flex;align-items:center;gap:7px;padding:3px 0;">
+        <span style="width:10px;height:10px;border-radius:2px;background:${COLORS[i]};flex-shrink:0;"></span>
+        <span style="font-size:12px;color:#6b6b66;line-height:1.3;">
+          <strong style="color:#1a1a18;font-size:13px;">${v}</strong>
+          <span style="margin:0 2px;">${labels[i]}</span>
+          <span style="color:#9b9b96;">${pct}%</span>
+        </span>
+      </div>`;
+    startAngle = endAngle;
+  });
+
+  document.getElementById('pieContainer').innerHTML = `
+    <div style="display:flex;align-items:center;gap:20px;padding:4px 0 8px;">
+      <div style="flex-shrink:0;">
+        <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block;">
+          ${svgPaths}
+        </svg>
+      </div>
+      <div style="flex:1;min-width:0;">${legendItems}</div>
+    </div>`;
+}
+
+function updateNavLabel() {
+  const label = document.getElementById('nav-label');
+  const btnNext = document.getElementById('btn-next');
+
+  if (currentView === 'semanal') {
+    const { start, end } = getWeekBounds(periodOffset);
+    const fmt = d => d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+    label.textContent = `${fmt(start)} — ${fmt(end)}`;
+    btnNext.disabled = periodOffset >= 0;
+  } else if (currentView === 'mensual') {
+    const { start } = getMonthBounds(periodOffset);
+    let txt = start.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+    label.textContent = txt.charAt(0).toUpperCase() + txt.slice(1);
+    btnNext.disabled = periodOffset >= 0;
+  }
+}
+
+function renderDashboard() {
+  const filtered = filterByView(allData);
+
+  if (currentView !== 'historico') {
+    updateNavLabel();
+    document.getElementById('nav-arrows').style.display = 'flex';
+  } else {
+    document.getElementById('nav-arrows').style.display = 'none';
+    const dates = allData.map(r => r._date).filter(Boolean);
+    if (dates.length) {
+      const min = new Date(Math.min(...dates));
+      const max = new Date(Math.max(...dates));
+      document.getElementById('nav-label').textContent = '';
+    }
+  }
+
+  document.getElementById('last-update').textContent = `Actualizado ${new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`;
+  renderMetrics(filtered);
+  renderVolChart(filtered);
+  renderTemasChart(filtered);
+  renderPieChart(filtered);
+  document.getElementById('status-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+}
+
+function showError(msg) {
+  document.getElementById('status-screen').innerHTML = `<div style="font-size:28px">⚠️</div><div class="error-msg">${msg}</div><button class="btn" onclick="loadData()">↻ Reintentar</button>`;
+}
+
+async function loadData() {
+  document.getElementById('status-screen').style.display = 'flex';
+  document.getElementById('status-screen').innerHTML = '<div class="spinner"></div><span>Cargando datos desde la planilla…</span>';
+  document.getElementById('dashboard').style.display = 'none';
+  try {
+    const res = await fetch(CSV_URL);
+    if (!res.ok) throw new Error(`Error HTTP ${res.status}`);
+    const text = await res.text();
+    if (!text.includes('Marca temporal')) throw new Error('La planilla no tiene el formato esperado');
+    const rows = parseCSV(text);
+    allData = rows.map(r => ({ ...r, _date: parseDate(r['Marca temporal']) })).filter(r => r._date && !isNaN(r._date));
+    if (!allData.length) throw new Error('No hay datos cargados en la planilla todavía');
+    renderDashboard();
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+loadData();
+
+let exportFormat = 'celu';
+function openExport() { document.getElementById('export-modal-bg').classList.add('open'); }
+function closeExport() { document.getElementById('export-modal-bg').classList.remove('open'); }
+function selectFormat(f) {
+  exportFormat = f;
+  document.getElementById('opt-celu').classList.toggle('selected', f === 'celu');
+  document.getElementById('opt-a4').classList.toggle('selected', f === 'a4');
+}
+
+async function doExport() {
+  const btn = document.getElementById('btn-do-export');
+  btn.disabled = true;
+  btn.textContent = 'Generando…';
+
+  const sizes = { celu: { w: 1080, h: 1920 }, a4: { w: 2480, h: 3508 } };
+  const { w, h } = sizes[exportFormat];
+
+  const source = document.getElementById('dashboard');
+  const canvas = await html2canvas(source, {
+    scale: exportFormat === 'celu' ? 3 : 4,
+    useCORS: true,
+    backgroundColor: '#f5f5f3',
+    logging: false
+  });
+
+  const final = document.createElement('canvas');
+  final.width = w;
+  final.height = h;
+  const ctx = final.getContext('2d');
+  ctx.fillStyle = '#f5f5f3';
+  ctx.fillRect(0, 0, w, h);
+
+  const scale = Math.min(w / canvas.width, h / canvas.height);
+  const dx = (w - canvas.width * scale) / 2;
+  const dy = exportFormat === 'celu' ? 80 : 120;
+  ctx.drawImage(canvas, dx, dy, canvas.width * scale, canvas.height * scale);
+
+  // Header del reporte
+  ctx.fillStyle = '#1D9E75';
+  ctx.fillRect(0, 0, w, exportFormat === 'celu' ? 70 : 100);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold ${exportFormat === 'celu' ? 28 : 42}px sans-serif`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.fillText('Consultas', exportFormat === 'celu' ? 32 : 48, exportFormat === 'celu' ? 35 : 50);
+  const periodTxt = document.getElementById('nav-label').textContent || document.getElementById('nav-label').textContent;
+  ctx.font = `${exportFormat === 'celu' ? 18 : 28}px sans-serif`;
+  ctx.textAlign = 'right';
+  ctx.fillText(periodTxt, w - (exportFormat === 'celu' ? 32 : 48), exportFormat === 'celu' ? 35 : 50);
+
+  const link = document.createElement('a');
+  link.download = `consultas-${exportFormat}-${new Date().toISOString().slice(0,10)}.png`;
+  link.href = final.toDataURL('image/png');
+  link.click();
+
+  btn.disabled = false;
+  btn.textContent = 'Generar PNG';
+  closeExport();
+}
+</script>
+</body>
+</html>
