@@ -429,7 +429,7 @@ function renderVolChart(sec, data) {
 function renderBarChart(sec, canvasId, data, keyFn, n=7) {
   destroyChart(`${sec}-${canvasId}`);
   const top=topN(data,keyFn,n);
-  const temasH=Math.max(180,top.length*38+40);
+  const temasH=Math.max(180,top.length*32+40);
   document.getElementById(canvasId).parentElement.style.height=temasH+'px';
   charts[`${sec}-${canvasId}`]=new Chart(document.getElementById(canvasId),{
     type:'bar',
@@ -489,7 +489,7 @@ function renderSection(sec) {
     renderBarChart('tel','tel-categChart', data, r=>TEL_CATS.find(c=>r[c]));
     renderPie('tel-pieContainer', data, r=>TEL_CATS.find(c=>r[c]));
     // subcategorías: aplanar todos los valores de categorías
-    renderBarChart('tel','tel-subCategChart', data, r=>{ for(const c of TEL_CATS){ if(r[c]&&r[c].trim()) return r[c].trim(); } return null; }, 10);
+    renderBarChart('tel','tel-subCategChart', data, r=>{ for(const c of TEL_CATS){ if(r[c]&&r[c].trim()) return r[c].trim(); } return null; }, 999);
   }
   document.getElementById(`${sec}-status`).style.display='none';
   document.getElementById(`${sec}-dashboard`).style.display='block';
