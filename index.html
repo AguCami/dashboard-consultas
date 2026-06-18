@@ -401,11 +401,10 @@ function renderVolChart(sec, data) {
     if(!r._date) return;
     let k;
     if(isHist) k=r._date.toLocaleDateString('es-AR',{month:'short',year:'numeric'});
-    else if(isMonth){ const ws=new Date(r._date),d=ws.getDay()||7; ws.setDate(ws.getDate()-d+1); k=`Sem. ${ws.getDate()}/${ws.getMonth()+1}`; }
     else k=`${DIAS[r._date.getDay()]} ${r._date.getDate()}/${r._date.getMonth()+1}`;
     grouped[k]=(grouped[k]||0)+1;
   });
-  const titulos={ semanal:'por día', mensual:'por semana', historico:'por mes' };
+  const titulos={ semanal:'por día', mensual:'por día', historico:'por mes' };
   const badgeMap={ semanal: offsets[sec]===0?'Semana actual':`Hace ${Math.abs(offsets[sec])} sem.`, mensual: offsets[sec]===0?'Mes actual':`Hace ${Math.abs(offsets[sec])} mes${Math.abs(offsets[sec])>1?'es':''}`, historico:'Histórico' };
   document.getElementById(`${sec}-vol-title`).textContent=`${sec==='mesa'?'Consultas':'Llamadas'} ${titulos[currentView]}`;
   document.getElementById(`${sec}-vol-badge`).textContent=badgeMap[currentView];
