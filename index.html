@@ -6,7 +6,6 @@
 <title>Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -528,57 +527,67 @@ async function doExport(){
   const fecha=new Date().toISOString().slice(0,10);
 
   if(exportFormat==='pdf'){
-    // PDF: captura todo el contenido a ancho fijo y pagina automáticamente
+    // PDF: capturar como imagen y embeber en PDF via data URI
     const captureW=900;
     const prevWidth=source.style.width;
     source.style.width=captureW+'px';
     document.body.style.overflow='visible';
     await new Promise(r=>setTimeout(r,150));
-    const canvas=await html2canvas(source,{scale:2,useCORS:true,backgroundColor:'#f5f5f3',logging:false,width:captureW,windowWidth:captureW,scrollX:0,scrollY:0});
+    const canvas=await html2canvas(source,{scale:2.5,useCORS:true,backgroundColor:'#f5f5f3',logging:false,width:captureW,windowWidth:captureW,scrollX:0,scrollY:0});
     source.style.width=prevWidth;
     document.body.style.overflow='';
-    const {jsPDF}=window.jspdf;
-    const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    const pW=pdf.internal.pageSize.getWidth();
-    const pH=pdf.internal.pageSize.getHeight();
-    const margin=12;
-    const headerH=18;
+
+    // A4 en puntos: 595 x 842
+    const A4W=595, A4H=842, margin=20, headerH=36;
+    const contentW=A4W-margin*2;
+    const imgH=(canvas.height/canvas.width)*contentW;
+    const totalH=headerH+16+imgH+margin;
+    const pages=Math.ceil(totalH/A4H);
+
+    // Crear un canvas final con el contenido completo
+    const DPI=2.5;
+    const fullW=Math.round(A4W*DPI), fullH=Math.round(Math.max(A4H,totalH)*DPI);
+    const fullCanvas=document.createElement('canvas');
+    fullCanvas.width=fullW; fullCanvas.height=fullH;
+    const ctx=fullCanvas.getContext('2d');
+
+    // Fondo blanco
+    ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,fullW,fullH);
+
     // Header
-    pdf.setFillColor(accentColor);
-    pdf.rect(0,0,pW,headerH,'F');
-    pdf.setTextColor(255,255,255);
-    pdf.setFontSize(13); pdf.setFont('helvetica','bold');
-    pdf.text(sectionName,margin,12);
-    pdf.setFontSize(9); pdf.setFont('helvetica','normal');
-    pdf.text(periodTxt,pW-margin,12,{align:'right'});
-    pdf.text(fecha,pW-margin,pH-6,{align:'right'});
-    // Contenido: dividir en páginas si es necesario
-    const imgW=pW-margin*2;
-    const imgH=(canvas.height/canvas.width)*imgW;
-    const contentY=headerH+6;
-    const availH=pH-contentY-10;
-    const pageH=(canvas.height/canvas.width)*imgW;
-    if(pageH<=availH){
-      pdf.addImage(canvas.toDataURL('image/jpeg',0.92),'JPEG',margin,contentY,imgW,pageH);
+    ctx.fillStyle=accentColor;
+    ctx.fillRect(0,0,fullW,Math.round(headerH*DPI));
+    ctx.fillStyle='#ffffff';
+    ctx.font=`bold ${Math.round(14*DPI)}px -apple-system,sans-serif`;
+    ctx.textBaseline='middle'; ctx.textAlign='left';
+    ctx.fillText(sectionName, Math.round(margin*DPI), Math.round(headerH/2*DPI));
+    ctx.font=`${Math.round(9*DPI)}px -apple-system,sans-serif`;
+    ctx.textAlign='right';
+    ctx.fillText(periodTxt+' · '+fecha, Math.round((A4W-margin)*DPI), Math.round(headerH/2*DPI));
+
+    // Contenido
+    ctx.drawImage(canvas, Math.round(margin*DPI), Math.round((headerH+10)*DPI), Math.round(contentW*DPI), Math.round(imgH*DPI));
+
+    // Generar PDF como HTML con imagen embebida
+    const imgData=fullCanvas.toDataURL('image/jpeg',0.93);
+    const pdfW=A4W, pdfH=Math.max(A4H, Math.round(totalH));
+    const htmlPDF=`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <style>*{margin:0;padding:0;}body{width:${pdfW}pt;}img{width:100%;display:block;}</style>
+    </head><body><img src="${imgData}"/></body></html>`;
+    const blob=new Blob([htmlPDF],{type:'text/html'});
+    const url=URL.createObjectURL(blob);
+
+    // Abrir en nueva pestaña para que el usuario imprima como PDF
+    const win=window.open(url,'_blank');
+    if(win){
+      win.onload=()=>{
+        setTimeout(()=>{ win.print(); URL.revokeObjectURL(url); },400);
+      };
     } else {
-      // múltiples páginas
-      const srcW=canvas.width;
-      const srcH=canvas.height;
-      const rowsPerPage=Math.floor(availH/(imgW/srcW*srcH/srcH)*srcH);
-      let srcY=0, firstPage=true;
-      while(srcY<srcH){
-        if(!firstPage){ pdf.addPage(); pdf.setFillColor(accentColor); pdf.rect(0,0,pW,8,'F'); }
-        const rowH=Math.min(rowsPerPage,srcH-srcY);
-        const tmpCanvas=document.createElement('canvas');
-        tmpCanvas.width=srcW; tmpCanvas.height=rowH;
-        tmpCanvas.getContext('2d').drawImage(canvas,0,srcY,srcW,rowH,0,0,srcW,rowH);
-        const sliceH=(rowH/srcW)*imgW;
-        const yPos=firstPage?contentY:10;
-        pdf.addImage(tmpCanvas.toDataURL('image/jpeg',0.92),'JPEG',margin,yPos,imgW,sliceH);
-        srcY+=rowH; firstPage=false;
-      }
+      // Fallback: descargar el HTML
+      const a=document.createElement('a');
+      a.href=url; a.download=`${currentSection}-${fecha}.html`; a.click();
     }
-    pdf.save(`${currentSection}-${fecha}.pdf`);
   } else {
     // PNG (celular o A4)
     const sizes={celu:{w:1080,h:1920},a4:{w:2480,h:3508}};
