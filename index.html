@@ -235,6 +235,19 @@
 const CSV_MESA = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR-vGYiK_8OhplLEXgetUneXjapip9jMQ-Epovf_BjlsE8MKZXHrIZ7TSVRBIKnSmoMK8KvW83diT6z/pub?output=csv";
 const CSV_TEL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRMJq3GWDAtzMnnDqrcZZoyIJT9-90_JYZ7HuEzlGDuwmbQqs9MP2klZ7V1-2oY-4IYdKFYrkh4-saJ/pub?gid=2050322054&single=true&output=csv";
 const TEL_CATS = ['Cortes por falta de pago','Ventas','Reclamos','Pagos','Tic'];
+const TEL_SUBCATS = [
+  'Plazo','Información','Reconexiones',
+  'Servicios sociales','Tic','Movilcoop','Luz','Agua','Cambios de titularidad','Traslados de servicios','Solicitar lectura','Baja de Servicio',
+  'Mucho Consumo (luz)','Mucho Consumo (Agua)','Perdida de agua','Poda','Sin luz','Sin agua','Estado del reclamo',
+  'Roela no impactado','Información',
+  'Reclamos / consultas'
+];
+function normalizarSubcat(val) {
+  if (!val || !val.trim()) return null;
+  const v = val.trim();
+  const match = TEL_SUBCATS.find(s => s.toLowerCase() === v.toLowerCase());
+  return match || 'Otros';
+}
 const COLORS   = ['#1D9E75','#7F77DD','#D85A30','#378ADD','#BA7517','#D4537E','#639922','#888780','#E24B4A','#5DCAA5'];
 const DIAS     = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 
@@ -489,7 +502,7 @@ function renderSection(sec) {
     renderBarChart('tel','tel-categChart', data, r=>TEL_CATS.find(c=>r[c]));
     renderPie('tel-pieContainer', data, r=>TEL_CATS.find(c=>r[c]));
     // subcategorías: aplanar todos los valores de categorías
-    renderBarChart('tel','tel-subCategChart', data, r=>{ for(const c of TEL_CATS){ if(r[c]&&r[c].trim()) return r[c].trim(); } return null; }, 999);
+    renderBarChart('tel','tel-subCategChart', data, r=>{ for(const c of TEL_CATS){ if(r[c]&&r[c].trim()) return normalizarSubcat(r[c]); } return null; }, 999);
   }
   document.getElementById(`${sec}-status`).style.display='none';
   document.getElementById(`${sec}-dashboard`).style.display='block';
