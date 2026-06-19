@@ -526,6 +526,11 @@ async function doExport(){
   const periodTxt=document.getElementById(`${currentSection}-nav-label`).textContent;
   const fecha=new Date().toISOString().slice(0,10);
 
+  // Forzar font rendering nítido antes de capturar
+  source.style.webkitFontSmoothing = 'none';
+  source.style.textRendering = 'geometricPrecision';
+  await new Promise(r=>setTimeout(r,50));
+
   if(exportFormat==='pdf'){
     // PDF: capturar como imagen y embeber en PDF via data URI
     const captureW=1200;
@@ -533,7 +538,7 @@ async function doExport(){
     source.style.width=captureW+'px';
     document.body.style.overflow='visible';
     await new Promise(r=>setTimeout(r,150));
-    const canvas=await html2canvas(source,{scale:4,useCORS:true,backgroundColor:'#f5f5f3',logging:false,width:captureW,windowWidth:captureW,scrollX:0,scrollY:0});
+    const canvas=await html2canvas(source,{scale:5,useCORS:true,backgroundColor:'#f5f5f3',logging:false,width:captureW,windowWidth:captureW,scrollX:0,scrollY:0,allowTaint:true,foreignObjectRendering:false});
     source.style.width=prevWidth;
     document.body.style.overflow='';
 
@@ -592,13 +597,13 @@ async function doExport(){
     // PNG (celular o A4)
     const sizes={celu:{w:1080,h:1920},a4:{w:2480,h:3508}};
     const {w,h}=sizes[exportFormat];
-    const captureW=exportFormat==='celu'?600:1200;
-    const scale=exportFormat==='celu'?5:6;
+    const captureW=exportFormat==='celu'?700:1400;
+    const scale=exportFormat==='celu'?6:7;
     const prevWidth=source.style.width;
     source.style.width=captureW+'px';
     document.body.style.overflow='visible';
     await new Promise(r=>setTimeout(r,150));
-    const canvas=await html2canvas(source,{scale,useCORS:true,backgroundColor:'#f5f5f3',logging:false,width:captureW,windowWidth:captureW,scrollX:0,scrollY:0});
+    const canvas=await html2canvas(source,{scale,useCORS:true,backgroundColor:'#f5f5f3',logging:false,width:captureW,windowWidth:captureW,scrollX:0,scrollY:0,allowTaint:true,foreignObjectRendering:false});
     source.style.width=prevWidth;
     document.body.style.overflow='';
     const final=document.createElement('canvas');
