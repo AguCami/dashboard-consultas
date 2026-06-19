@@ -528,12 +528,12 @@ async function doExport(){
 
   if(exportFormat==='pdf'){
     // PDF: capturar como imagen y embeber en PDF via data URI
-    const captureW=900;
+    const captureW=1200;
     const prevWidth=source.style.width;
     source.style.width=captureW+'px';
     document.body.style.overflow='visible';
     await new Promise(r=>setTimeout(r,150));
-    const canvas=await html2canvas(source,{scale:2.5,useCORS:true,backgroundColor:'#f5f5f3',logging:false,width:captureW,windowWidth:captureW,scrollX:0,scrollY:0});
+    const canvas=await html2canvas(source,{scale:4,useCORS:true,backgroundColor:'#f5f5f3',logging:false,width:captureW,windowWidth:captureW,scrollX:0,scrollY:0});
     source.style.width=prevWidth;
     document.body.style.overflow='';
 
@@ -592,8 +592,8 @@ async function doExport(){
     // PNG (celular o A4)
     const sizes={celu:{w:1080,h:1920},a4:{w:2480,h:3508}};
     const {w,h}=sizes[exportFormat];
-    const captureW=exportFormat==='celu'?480:960;
-    const scale=exportFormat==='celu'?4:5;
+    const captureW=exportFormat==='celu'?600:1200;
+    const scale=exportFormat==='celu'?5:6;
     const prevWidth=source.style.width;
     source.style.width=captureW+'px';
     document.body.style.overflow='visible';
